@@ -1,0 +1,41 @@
+name: K8s Pod Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 03_K8s]
+    paths:
+      - "k8s/pod.yaml"
+      - ".github/workflows/k8s-pod.yml"
+
+jobs:
+  deploy-pod:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    env:
+      NAMESPACE: rares
+    steps:
+      - name: Check out code repository
+        uses: actions/checkout@v7
+
+      - name: Check cluster access
+        run: kubectl get nodes
+
+      - name: Create namespace if it doesn't exist
+        run: kubectl create namespace $env:NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply pod with random name
+        run: |
+          $id = [guid]::NewGuid().ToString('N').Substring(0,6)
+          $name = "mypod-$id"
+          (Get-Content k8s/pod.yaml) -replace '\{ID\}', $id | kubectl apply -f -
+          Add-Content -Path $env:GITHUB_ENV -Value "POD_NAME=$name"
+          Write-Output "Created pod $name"
+
+      - name: Wait until pod is ready
+        run: kubectl wait --for=condition=Ready pod/$env:POD_NAME -n $env:NAMESPACE --timeout=90s
+
+      - name: List pods in namespace
+        run: kubectl get pods -n $env:NAMESPACE -o wide
