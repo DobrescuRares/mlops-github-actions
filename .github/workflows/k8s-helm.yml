@@ -1,0 +1,45 @@
+name: K8s Helm Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 03_K8s]
+    paths:
+      - "helm/**"
+      - ".github/workflows/k8s-helm.yml"
+
+jobs:
+  helm-deploy:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    env:
+      NAMESPACE: rares
+      RELEASE: hello-chart
+    steps:
+      - name: Check out code repository
+        uses: actions/checkout@v7
+
+      - name: Check helm version
+        run: helm version
+
+      - name: Lint chart
+        run: helm lint ./helm/hello-chart
+
+      - name: Helm upgrade --install
+        run: >
+          helm upgrade --install $env:RELEASE ./helm/hello-chart
+          --namespace $env:NAMESPACE --create-namespace
+          --set image.repository=ghcr.io/dobrescurares/hello-world-nginx
+          --set image.tag=v1
+          --set replicaCount=2
+          --wait --timeout 2m
+
+      - name: Show release and resources
+        run: |
+          helm list -n $env:NAMESPACE
+          kubectl get deploy,pods,svc -l app.kubernetes.io/instance=$env:RELEASE -n $env:NAMESPACE
+
+      - name: Helm test
+        run: helm test $env:RELEASE -n $env:NAMESPACE
