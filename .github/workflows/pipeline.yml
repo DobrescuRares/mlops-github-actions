@@ -1,0 +1,83 @@
+name: Full Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 03_K8s]
+    paths:
+      - "Dockerfile"
+      - "index.html"
+      - ".github/workflows/pipeline.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code repository
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/hello-world-nginx
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    env:
+      NAMESPACE: rares
+      RELEASE: hello-chart
+    steps:
+      - name: Check out code repository
+        uses: actions/checkout@v7
+
+      - name: Compute image tag from commit sha
+        run: |
+          $tag = "sha-" + "${{ github.sha }}".Substring(0,7)
+          Add-Content -Path $env:GITHUB_ENV -Value "IMAGE_TAG=$tag"
+          Write-Output "Deploying tag $tag"
+
+      - name: Helm upgrade --install with new tag
+        run: >
+          helm upgrade --install $env:RELEASE ./helm/hello-chart
+          --namespace $env:NAMESPACE --create-namespace
+          --set image.repository=ghcr.io/dobrescurares/hello-world-nginx
+          --set image.tag=$env:IMAGE_TAG
+          --set replicaCount=2
+          --wait --timeout 2m
+
+      - name: Verify rollout
+        run: kubectl rollout status deployment/$env:RELEASE -n $env:NAMESPACE --timeout=120s
+
+      - name: Show deployed image
+        run: kubectl get deployment $env:RELEASE -n $env:NAMESPACE -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+      - name: Helm test
+        run: helm test $env:RELEASE -n $env:NAMESPACE

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-nginx
+  namespace: rares
+  labels:
+    app: hello-nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-nginx
+  template:
+    metadata:
+      labels:
+        app: hello-nginx
+    spec:
+      containers:
+        - name: hello-nginx
+          image: ghcr.io/dobrescurares/hello-world-nginx:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
