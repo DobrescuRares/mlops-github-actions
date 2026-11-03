@@ -1,0 +1,42 @@
+name: Azure read-only check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [04_Azure]
+    paths:
+      - ".github/workflows/azure-check.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    environment: mlops-demo
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify scoped Azure access
+        env:
+          GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: az group show --name "$GROUP" --query name --output tsv
+
+      - name: Azure CLI version on the runner
+        run: az version
+
+      - name: Azure/CLI action with latest azcli
+        uses: azure/cli@v3
+        env:
+          GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az version
+            az group show --name "$GROUP" --query "{name:name, location:location}" -o table
