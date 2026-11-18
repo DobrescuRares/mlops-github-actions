@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: animals-api
+  namespace: rares
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: animals-api
+  template:
+    metadata:
+      labels:
+        app: animals-api
+    spec:
+      containers:
+        - name: animals-api
+          image: ghcr.io/dobrescurares/mlops-animals-api:sha-e5915aff269a7477a7d5b8f1ffdb1b58883161df-run-44419768265
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
