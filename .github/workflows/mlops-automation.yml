@@ -44,7 +44,7 @@ jobs:
   training:
     name: Train CNN Model
     needs: validate
-    if: github.event_name == 'push' || inputs.run_training == true
+    if: github.event_name == 'workflow_dispatch' && inputs.run_training == true
     runs-on: ubuntu-24.04
 
     steps:
