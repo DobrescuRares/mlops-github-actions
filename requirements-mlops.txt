@@ -1,7 +1,4 @@
-
-@'
 tensorflow==2.21.0
 numpy==2.4.6
 Pillow==12.3.0
 scikit-learn==1.9.1
-'@ | Set-Content ".\requirements-mlops.txt" -Encoding utf8
