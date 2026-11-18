@@ -1,0 +1,45 @@
+﻿name: MLOps Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_training:
+        description: "Run model training"
+        required: true
+        type: boolean
+        default: false
+      epochs:
+        description: "Number of training epochs"
+        required: true
+        type: number
+        default: 2
+
+  push:
+    branches:
+      - 05_MLOps_Automation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Python Code
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check Python syntax
+        run: python -m compileall -q components
+
+      - name: Display workflow parameters
+        run: |
+          echo "Training enabled: ${{ inputs.run_training }}"
+          echo "Epochs: ${{ inputs.epochs }}"
+          echo "Commit: ${{ github.sha }}"

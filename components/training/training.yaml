@@ -1,0 +1,53 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: training_cli
+version: 0.1.0
+display_name: Training (CLI)
+description: Trains the animal classification CNN
+type: command
+is_deterministic: true
+
+environment: azureml:aml-training-cli:0.1.0
+
+resources:
+  instance_count: 1
+
+code: ./code
+command: >-
+  python train.py
+  --training_folder ${{inputs.training_folder}}
+  --testing_folder ${{inputs.testing_folder}}
+  --output_folder ${{outputs.output_folder}}
+  --epochs ${{inputs.epochs}}
+  --seed ${{inputs.seed}}
+  --initial_learning_rate ${{inputs.initial_learning_rate}}
+  --batch_size ${{inputs.batch_size}}
+  --patience ${{inputs.patience}}
+  --model_name ${{inputs.model_name}}
+
+inputs:
+  training_folder:
+    type: uri_folder
+  testing_folder:
+    type: uri_folder
+  epochs:
+    type: integer
+    default: 5
+  seed:
+    type: integer
+    default: 42
+  initial_learning_rate:
+    type: number
+    default: 0.01
+  batch_size:
+    type: integer
+    default: 32
+  patience:
+    type: integer
+    default: 11
+  model_name:
+    type: string
+    default: animal-cnn
+
+outputs:
+  output_folder:
+    type: uri_folder
