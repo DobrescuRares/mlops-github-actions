@@ -1,0 +1,127 @@
+﻿name: MLOps Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_training:
+        description: "Run model training"
+        required: true
+        type: boolean
+        default: false
+      epochs:
+        description: "Number of training epochs"
+        required: true
+        type: number
+        default: 2
+
+  push:
+    branches:
+      - 05_MLOps_Automation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Python Code
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check Python syntax
+        run: python -m compileall -q components
+
+      - name: Display version
+        run: echo "Commit ${{ github.sha }}"
+
+  training:
+    name: Train CNN Model
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && inputs.run_training == true
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-mlops.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-mlops.txt
+
+      - name: Generate synthetic test images
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import numpy as np
+
+          rng = np.random.default_rng(42)
+          for animal in ["cats", "dogs", "pandas"]:
+              folder = Path("test-data") / animal
+              folder.mkdir(parents=True, exist_ok=True)
+              for i in range(20):
+                  pixels = rng.integers(
+                      0, 256, (64, 64, 3), dtype=np.uint8
+                  )
+                  Image.fromarray(pixels).save(
+                      folder / f"{animal}_{i:03d}.jpg"
+                  )
+          PY
+
+      - name: Preprocess images
+        shell: bash
+        run: |
+          for animal in cats dogs pandas; do
+            mkdir -p "processed-data/$animal"
+            python components/dataprep/code/dataprep.py \
+              --data "test-data/$animal" \
+              --output_data "processed-data/$animal"
+          done
+
+      - name: Split training and testing data
+        run: |
+          mkdir -p split-data/train split-data/test
+          python components/dataprep/code/traintestsplit.py \
+            --datasets processed-data/cats processed-data/dogs processed-data/pandas \
+            --training_data_output split-data/train \
+            --testing_data_output split-data/test \
+            --split_size 20
+
+      - name: Train model
+        env:
+          EPOCHS: ${{ github.event_name == 'workflow_dispatch' && inputs.epochs || 2 }}
+        run: |
+          mkdir -p local-output
+          python components/training/code/train.py \
+            --training_folder split-data/train \
+            --testing_folder split-data/test \
+            --output_folder local-output \
+            --epochs "$EPOCHS" \
+            --seed 42 \
+            --batch_size 8 \
+            --model_name animal-cnn
+
+      - name: Verify trained model
+        run: test -f local-output/animal-cnn/model.keras
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: animal-cnn-${{ github.sha }}
+          path: local-output/animal-cnn/model.keras
+          if-no-files-found: error
+          retention-days: 7
