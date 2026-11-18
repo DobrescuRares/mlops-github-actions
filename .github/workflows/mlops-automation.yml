@@ -159,3 +159,33 @@ jobs:
           context: ./inference
           push: true
           tags: ghcr.io/dobrescurares/mlops-animals-api:sha-${{ github.sha }}-run-${{ github.run_id }}
+
+  deploy-kubernetes:
+    name: Deploy to Local Kubernetes
+    needs: build-and-push
+    runs-on: self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Kubernetes access
+        shell: powershell
+        run: kubectl get nodes
+
+      - name: Deploy image to Kubernetes
+        shell: powershell
+        env:
+          IMAGE: ghcr.io/dobrescurares/mlops-animals-api:sha-${{ github.sha }}-run-${{ github.run_id }}
+        run: |
+          kubectl apply -f k8s/animals-api-deployment.yaml
+          kubectl apply -f k8s/animals-api-service.yaml
+          kubectl set image deployment/animals-api animals-api=$env:IMAGE -n rares
+          kubectl rollout status deployment/animals-api -n rares --timeout=180s
+
+      - name: Verify deployment
+        shell: powershell
+        run: |
+          kubectl get pods -n rares -l app=animals-api
+          kubectl get svc animals-api -n rares
